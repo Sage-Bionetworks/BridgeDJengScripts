@@ -24,8 +24,8 @@ import org.apache.commons.lang.StringUtils;
 // anyway.
 public class PurgeStudyIncompleteUploads {
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
-    private static final int PAGE_SIZE = 10;
-    private static final int SLEEP_TIME_MILLIS = 500;   // 2 pages per second; 20 rows per second
+    private static final int PAGE_SIZE = 40;
+    private static final int SLEEP_TIME_MILLIS = 1000;
 
     // DDB
     private static AmazonDynamoDB ddbClient;
@@ -92,7 +92,7 @@ public class PurgeStudyIncompleteUploads {
         Stopwatch stopwatch = Stopwatch.createStarted();
         do {
             // logging
-            if (countSoFar % 20 == 0) {
+            if (countSoFar % 10000 < PAGE_SIZE) {
                 System.out.println(countSoFar + " records seen in " + stopwatch.elapsed(TimeUnit.SECONDS) +
                         " seconds...");
             }
@@ -113,6 +113,9 @@ public class PurgeStudyIncompleteUploads {
             // Scan for next page.
             System.out.println("Querying uploads table with exclusive start key=" + lastEvaluatedUploadId);
             ScanRequest scanRequest = new ScanRequest().withTableName(ddbPrefix + "Upload2").withLimit(PAGE_SIZE);
+            // Eventual reads can double our throughput. Plus, there's no new data coming into StJ, so we don't need
+            // consistent reads anyway.
+            scanRequest.setConsistentRead(false);
             if (StringUtils.isNotBlank(lastEvaluatedUploadId)) {
                 scanRequest.addExclusiveStartKeyEntry("uploadId", new AttributeValue(lastEvaluatedUploadId));
             }
