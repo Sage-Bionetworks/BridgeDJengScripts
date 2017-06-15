@@ -47,9 +47,19 @@
             <version>${stormpath.version}</version>
         </dependency>
         <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>6.0.6</version>
+        </dependency>
+        <dependency>
             <groupId>org.aspectj</groupId>
             <artifactId>aspectjrt</artifactId>
             <version>1.8.9</version>
+        </dependency>
+        <dependency>
+            <groupId>org.sagebionetworks</groupId>
+            <artifactId>bridge-base</artifactId>
+            <version>2.7.6</version>
         </dependency>
         <dependency>
             <groupId>org.sagebionetworks</groupId>
@@ -63,6 +73,11 @@
             <id>sagebionetworks-libs-releases-local</id>
             <name>sagebionetworks-libs-releases-local</name>
             <url>http://sagebionetworks.artifactoryonline.com/sagebionetworks/libs-releases-local</url>
+        </repository>
+        <repository>
+            <id>org-sagebridge-repo-maven-releases</id>
+            <name>org-sagebridge-repo-maven-releases</name>
+            <url>https://repo-maven.sagebridge.org/</url>
         </repository>
     </repositories>
 
