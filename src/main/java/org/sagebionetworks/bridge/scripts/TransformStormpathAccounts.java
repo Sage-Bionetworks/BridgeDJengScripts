@@ -164,6 +164,12 @@ public class TransformStormpathAccounts {
                     // get env and study from dirs
                     String dirId = inputAccountNode.get("directory").get("id").textValue();
                     JsonNode dirNode = directoriesById.get(dirId);
+                    if (dirNode == null) {
+                        // This is possible, for example, if the directory is "Stormpath Adminstrators".
+                        System.out.println("WARN No directory found for directory ID " + dirId + ", account ID " +
+                                accountId);
+                        continue;
+                    }
                     String env = dirNode.get("env").textValue();
                     outputAccountNode.put("env", env);
                     String studyId = dirNode.get("studyId").textValue();
@@ -230,10 +236,11 @@ public class TransformStormpathAccounts {
                     outputAccountNode.put("passwordModifiedOn", passwordModifiedOnEpochMillis);
 
                     // passwords (algorithm, hash, modifiedOn)
-                    String passwordHash = inputAccountNode.get("password").textValue();
-                    if (StringUtils.isNotBlank(passwordHash)) {
+                    String passwordAlgorithm = null;
+                    String passwordHash = null;
+                    if (inputAccountNode.has("password")) {
+                        passwordHash = inputAccountNode.get("password").textValue();
                         // determine algorithm from hash
-                        String passwordAlgorithm = null;
                         if (passwordHash.startsWith("$stormpath")) {
                             passwordAlgorithm = "STORMPATH_HMAC_SHA_256";
                         } else if (passwordHash.startsWith("$2")) {
@@ -242,9 +249,9 @@ public class TransformStormpathAccounts {
                             System.err.println("ERROR Cannot identify password algorithm for account " + accountId +
                                     " password hash " + passwordHash);
                         }
-                        outputAccountNode.put("passwordAlgorithm", passwordAlgorithm);
-                        outputAccountNode.put("passwordHash", passwordHash);
                     }
+                    outputAccountNode.put("passwordAlgorithm", passwordAlgorithm);
+                    outputAccountNode.put("passwordHash", passwordHash);
 
                     // decrypt custom data
                     Map<String, String> customDataMap = new HashMap<>();
@@ -313,15 +320,17 @@ public class TransformStormpathAccounts {
 
                     // get health code from DynamoDB
                     String healthCode = null;
-                    GetItemResult healthIdResult = ddbClient.getItem(ddbPrefixByEnv.get(env) + "HealthId",
-                            ImmutableMap.of("id", new AttributeValue(healthId)));
-                    Map<String, AttributeValue> healthIdItem = healthIdResult.getItem();
-                    if (healthIdItem == null) {
-                        // This should never happen, but sometimes comes up during testing.
-                        System.err.println("ERROR Couldn't find healthCode for healthId " + healthId + ", accountId " +
-                                accountId + ", env " + env);
-                    } else {
-                        healthCode = healthIdItem.get("code").getS();
+                    if (StringUtils.isNotBlank(healthId)) {
+                        GetItemResult healthIdResult = ddbClient.getItem(ddbPrefixByEnv.get(env) + "HealthId",
+                                ImmutableMap.of("id", new AttributeValue(healthId)));
+                        Map<String, AttributeValue> healthIdItem = healthIdResult.getItem();
+                        if (healthIdItem == null) {
+                            // This should never happen, but sometimes comes up during testing.
+                            System.err.println("ERROR Couldn't find healthCode for healthId " + healthId +
+                                    ", accountId " + accountId + ", env " + env);
+                        } else {
+                            healthCode = healthIdItem.get("code").getS();
+                        }
                     }
                     outputAccountNode.put("healthCode", healthCode);
 

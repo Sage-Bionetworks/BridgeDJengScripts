@@ -131,6 +131,7 @@ public class StormpathToMySqlMigration {
         }
     }
 
+    @SuppressWarnings("ConstantConditions")
     private static void execute() throws IOException, SQLException {
         // Metrics
         int numAccounts = 0;
@@ -314,33 +315,33 @@ public class StormpathToMySqlMigration {
         //noinspection StringBufferReplaceableByString
         StringBuilder queryBuilder = new StringBuilder();
         queryBuilder.append("insert into Accounts (id, studyId, email, createdOn, healthCode, healthId, modifiedOn, " +
-                "firstName, lastName, passwordAlgorithm, passwordHash, passwordModifiedOn, status) values ('");
-        queryBuilder.append(accountNode.get("id").textValue());
-        queryBuilder.append("', '");
-        queryBuilder.append(accountNode.get("studyId").textValue());
-        queryBuilder.append("', '");
-        queryBuilder.append(accountNode.get("email").textValue());
-        queryBuilder.append("', ");
-        queryBuilder.append(accountNode.get("createdOn").longValue());
-        queryBuilder.append(", '");
-        queryBuilder.append(accountNode.get("healthCode").textValue());
-        queryBuilder.append("', '");
-        queryBuilder.append(accountNode.get("healthId").textValue());
-        queryBuilder.append("', ");
-        queryBuilder.append(accountNode.get("modifiedOn").longValue());
-        queryBuilder.append(", '");
-        queryBuilder.append(accountNode.get("firstName").textValue());
-        queryBuilder.append("', '");
-        queryBuilder.append(accountNode.get("lastName").textValue());
-        queryBuilder.append("', '");
-        queryBuilder.append(accountNode.get("passwordAlgorithm").textValue());
-        queryBuilder.append("', '");
-        queryBuilder.append(accountNode.get("passwordHash").textValue());
-        queryBuilder.append("', ");
-        queryBuilder.append(accountNode.get("passwordModifiedOn").longValue());
-        queryBuilder.append(", '");
-        queryBuilder.append(accountNode.get("status").textValue());
-        queryBuilder.append("')");
+                "firstName, lastName, passwordAlgorithm, passwordHash, passwordModifiedOn, status) values (");
+        queryBuilder.append(serializeJsonTextField(accountNode, "id"));
+        queryBuilder.append(", ");
+        queryBuilder.append(serializeJsonTextField(accountNode, "studyId"));
+        queryBuilder.append(", ");
+        queryBuilder.append(serializeJsonTextField(accountNode, "email"));
+        queryBuilder.append(", ");
+        queryBuilder.append(getJsonNumberField(accountNode, "createdOn"));
+        queryBuilder.append(", ");
+        queryBuilder.append(serializeJsonTextField(accountNode, "healthCode"));
+        queryBuilder.append(", ");
+        queryBuilder.append(serializeJsonTextField(accountNode, "healthId"));
+        queryBuilder.append(", ");
+        queryBuilder.append(getJsonNumberField(accountNode, "modifiedOn"));
+        queryBuilder.append(", ");
+        queryBuilder.append(serializeJsonTextField(accountNode, "firstName"));
+        queryBuilder.append(", ");
+        queryBuilder.append(serializeJsonTextField(accountNode, "lastName"));
+        queryBuilder.append(", ");
+        queryBuilder.append(serializeJsonTextField(accountNode, "passwordAlgorithm"));
+        queryBuilder.append(", ");
+        queryBuilder.append(serializeJsonTextField(accountNode, "passwordHash"));
+        queryBuilder.append(", ");
+        queryBuilder.append(getJsonNumberField(accountNode, "passwordModifiedOn"));
+        queryBuilder.append(", ");
+        queryBuilder.append(serializeJsonTextField(accountNode, "status"));
+        queryBuilder.append(")");
         return queryBuilder.toString();
     }
 
@@ -379,41 +380,26 @@ public class StormpathToMySqlMigration {
             JsonNode consentListForSubpop = consentsBySubpopEntry.getValue();
 
             for (JsonNode oneConsent : consentListForSubpop) {
+                //noinspection StringBufferReplaceableByString
                 StringBuilder valueBuilder = new StringBuilder();
                 valueBuilder.append("('");
                 valueBuilder.append(accountId);
                 valueBuilder.append("', '");
                 valueBuilder.append(subpopGuid);
                 valueBuilder.append("', ");
-                valueBuilder.append(oneConsent.get("signedOn").longValue());
-                valueBuilder.append(", '");
-                valueBuilder.append(oneConsent.get("birthdate").textValue());
-                valueBuilder.append("', ");
-                valueBuilder.append(oneConsent.get("consentCreatedOn").longValue());
-                valueBuilder.append(", '");
-                valueBuilder.append(oneConsent.get("name").textValue());
-                valueBuilder.append("', ");
-                if (oneConsent.has("imageData")) {
-                    valueBuilder.append("'");
-                    valueBuilder.append(oneConsent.get("imageData").textValue());
-                    valueBuilder.append("'");
-                } else {
-                    valueBuilder.append("null");
-                }
+                valueBuilder.append(getJsonNumberField(oneConsent,"signedOn"));
                 valueBuilder.append(", ");
-                if (oneConsent.has("imageMimeType")) {
-                    valueBuilder.append("'");
-                    valueBuilder.append(oneConsent.get("imageMimeType").textValue());
-                    valueBuilder.append("'");
-                } else {
-                    valueBuilder.append("null");
-                }
+                valueBuilder.append(serializeJsonTextField(oneConsent, "birthdate"));
                 valueBuilder.append(", ");
-                if (oneConsent.has("withdrewOn")) {
-                    valueBuilder.append(oneConsent.get("withdrewOn").longValue());
-                } else {
-                    valueBuilder.append("null");
-                }
+                valueBuilder.append(getJsonNumberField(oneConsent, "consentCreatedOn"));
+                valueBuilder.append(", ");
+                valueBuilder.append(serializeJsonTextField(oneConsent, "name"));
+                valueBuilder.append(", ");
+                valueBuilder.append(serializeJsonTextField(oneConsent, "imageData"));
+                valueBuilder.append(", ");
+                valueBuilder.append(serializeJsonTextField(oneConsent, "imageMimeType"));
+                valueBuilder.append(", ");
+                valueBuilder.append(getJsonNumberField(oneConsent, "withdrewOn"));
                 valueBuilder.append(")");
                 valueList.add(valueBuilder.toString());
             }
@@ -431,5 +417,23 @@ public class StormpathToMySqlMigration {
         }
 
         return "insert into AccountRoles (accountId, role) values " + SQL_VALUES_JOINER.join(valueList);
+    }
+
+    private static String serializeJsonTextField(JsonNode parent, String key) {
+        JsonNode child = parent.get(key);
+        if (child != null && !child.isNull()) {
+            return "'" + child.textValue() + "'";
+        } else {
+            return null;
+        }
+    }
+
+    private static Long getJsonNumberField(JsonNode parent, String key) {
+        JsonNode child = parent.get(key);
+        if (child != null && !child.isNull()) {
+            return child.longValue();
+        } else {
+            return null;
+        }
     }
 }
