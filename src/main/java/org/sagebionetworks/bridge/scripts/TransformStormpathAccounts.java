@@ -177,7 +177,7 @@ public class TransformStormpathAccounts {
 
                     // Max accounts check _after_ the env whitelist. Otherwise, we might waste our "quota" on accounts
                     // that we don't even process.
-                    if (numAccounts >= maxAccounts) {
+                    if (maxAccounts != null && numAccounts >= maxAccounts) {
                         break;
                     }
                     if (numAccounts % LOG_PERIOD == 0) {
