@@ -289,6 +289,11 @@ public class StormpathToMySqlMigration {
                         }
                     }
 
+                    // We've already backfilled all the accounts, and new accounts are being written to both sources
+                    // now. If we need to insert another account, this may be an indication of a bug in our MySQL Auth
+                    // DAO or the migration DAO. Log so we can track down.
+                    System.out.println("Inserted account " + accountId);
+
                     numInserted++;
                 } catch (Exception ex) {
                     System.err.println("ERROR Error processing account file " + oneAccountPath.toString() + ": " +
