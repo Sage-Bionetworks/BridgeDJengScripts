@@ -27,6 +27,7 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Multiset;
 import com.google.common.util.concurrent.RateLimiter;
+import org.apache.commons.lang.StringEscapeUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -115,7 +116,7 @@ public class StormpathToMySqlMigration {
             // Append SSL props to URL if needed
             boolean useSsl = oneConnectionNode.get("useSsl").booleanValue();
             if (useSsl) {
-                url = url + "&requireSSL=true&useSSL=true&verifyServerCertificate=true";
+                url = url + "&requireSSL=true&useSSL=true&verifyServerCertificate=false";
             }
 
             // Connect to DB
@@ -150,6 +151,7 @@ public class StormpathToMySqlMigration {
                     JsonNode accountNode = JSON_MAPPER.readTree(oneAccountPath.toFile());
                     String env = accountNode.get("env").textValue();
                     String accountId = accountNode.get("id").textValue();
+                    long createdOn = accountNode.get("createdOn").longValue();
                     long jsonModifiedOn = accountNode.get("modifiedOn").longValue();
 
                     // env whitelist - We ended up putting accounts for all 4 envs in the same directory to make it
@@ -253,7 +255,8 @@ public class StormpathToMySqlMigration {
                     JsonNode consentsBySubpop = accountNode.get("consents");
                     int numConsents = countConsents(consentsBySubpop);
                     if (numConsents > 0) {
-                        String insertIntoConsentsQuery = makeInsertIntoConsentsQuery(accountId, consentsBySubpop);
+                        String insertIntoConsentsQuery = makeInsertIntoConsentsQuery(accountId, createdOn,
+                                consentsBySubpop);
                         try (Statement insertIntoConsentsStatement = mySqlConnection.createStatement()) {
                             int rowsInserted = insertIntoConsentsStatement.executeUpdate(insertIntoConsentsQuery);
                             if (rowsInserted != numConsents) {
@@ -371,8 +374,9 @@ public class StormpathToMySqlMigration {
         return numConsents;
     }
 
-    private static String makeInsertIntoConsentsQuery(String accountId, JsonNode consentsBySubpopNode) {
-        List<String> valueList = new ArrayList<>();
+    private static String makeInsertIntoConsentsQuery(String accountId, long createdOn,
+            JsonNode consentsBySubpopNode) {
+        Map<Long, String> valuesBySignedOn = new HashMap<>();
         Iterator<Map.Entry<String, JsonNode>> consentsBySubpopIter = consentsBySubpopNode.fields();
         while (consentsBySubpopIter.hasNext()) {
             Map.Entry<String, JsonNode> consentsBySubpopEntry = consentsBySubpopIter.next();
@@ -380,6 +384,11 @@ public class StormpathToMySqlMigration {
             JsonNode consentListForSubpop = consentsBySubpopEntry.getValue();
 
             for (JsonNode oneConsent : consentListForSubpop) {
+                Long signedOn = getJsonNumberField(oneConsent,"signedOn");
+                if (signedOn == null) {
+                    signedOn = createdOn;
+                }
+
                 //noinspection StringBufferReplaceableByString
                 StringBuilder valueBuilder = new StringBuilder();
                 valueBuilder.append("('");
@@ -387,7 +396,7 @@ public class StormpathToMySqlMigration {
                 valueBuilder.append("', '");
                 valueBuilder.append(subpopGuid);
                 valueBuilder.append("', ");
-                valueBuilder.append(getJsonNumberField(oneConsent,"signedOn"));
+                valueBuilder.append(signedOn);
                 valueBuilder.append(", ");
                 valueBuilder.append(serializeJsonTextField(oneConsent, "birthdate"));
                 valueBuilder.append(", ");
@@ -401,13 +410,13 @@ public class StormpathToMySqlMigration {
                 valueBuilder.append(", ");
                 valueBuilder.append(getJsonNumberField(oneConsent, "withdrewOn"));
                 valueBuilder.append(")");
-                valueList.add(valueBuilder.toString());
+                valuesBySignedOn.put(signedOn, valueBuilder.toString());
             }
         }
 
         return "insert into AccountConsents (accountId, subpopulationGuid, signedOn, birthdate, consentCreatedOn, " +
                 "name, signatureImageData, signatureImageMimeType, withdrewOn) values " +
-                SQL_VALUES_JOINER.join(valueList);
+                SQL_VALUES_JOINER.join(valuesBySignedOn.values());
     }
 
     private static String makeInsertIntoRolesQuery(String accountId, JsonNode roleListNode) {
@@ -422,7 +431,7 @@ public class StormpathToMySqlMigration {
     private static String serializeJsonTextField(JsonNode parent, String key) {
         JsonNode child = parent.get(key);
         if (child != null && !child.isNull()) {
-            return "'" + child.textValue() + "'";
+            return "'" + StringEscapeUtils.escapeSql(child.textValue()) + "'";
         } else {
             return null;
         }
