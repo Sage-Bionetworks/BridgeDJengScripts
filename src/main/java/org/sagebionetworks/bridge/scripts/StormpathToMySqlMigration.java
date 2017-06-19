@@ -27,6 +27,7 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Multiset;
 import com.google.common.util.concurrent.RateLimiter;
+import org.apache.commons.lang.StringEscapeUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -115,7 +116,7 @@ public class StormpathToMySqlMigration {
             // Append SSL props to URL if needed
             boolean useSsl = oneConnectionNode.get("useSsl").booleanValue();
             if (useSsl) {
-                url = url + "&requireSSL=true&useSSL=true&verifyServerCertificate=true";
+                url = url + "&requireSSL=true&useSSL=true&verifyServerCertificate=false";
             }
 
             // Connect to DB
@@ -150,6 +151,7 @@ public class StormpathToMySqlMigration {
                     JsonNode accountNode = JSON_MAPPER.readTree(oneAccountPath.toFile());
                     String env = accountNode.get("env").textValue();
                     String accountId = accountNode.get("id").textValue();
+                    long createdOn = accountNode.get("createdOn").longValue();
                     long jsonModifiedOn = accountNode.get("modifiedOn").longValue();
 
                     // env whitelist - We ended up putting accounts for all 4 envs in the same directory to make it
@@ -214,7 +216,14 @@ public class StormpathToMySqlMigration {
                             // If we found an outdated row in MySQL, this means our Migration Auth Dao is failing to
                             // keep the account info up-to-date. Log, so we can determine how often this is happening
                             // and fix as appropriate.
-                            System.out.println("WARN Found outdated account ID " + accountId);
+                            long delta = Math.abs(jsonModifiedOn - sqlModifiedOn);
+                            if (delta > 1000) {
+                                // Because accounts aren't updated simultaneously and because of clock skew, Stormpath
+                                // accounts might be slightly newer than MySQL accounts. Only log if the Stormpath
+                                // account is significantly newer (by more than a second).
+                                System.out.println("WARN Found outdated account ID " + accountId +
+                                        ", Stormpath account is newer by " + delta + " seconds");
+                            }
 
                             // Metrics
                             numDeleted++;
@@ -251,9 +260,10 @@ public class StormpathToMySqlMigration {
 
                     // insert into AccountConsents
                     JsonNode consentsBySubpop = accountNode.get("consents");
-                    int numConsents = countConsents(consentsBySubpop);
+                    int numConsents = countConsents(accountId, consentsBySubpop);
                     if (numConsents > 0) {
-                        String insertIntoConsentsQuery = makeInsertIntoConsentsQuery(accountId, consentsBySubpop);
+                        String insertIntoConsentsQuery = makeInsertIntoConsentsQuery(accountId, createdOn,
+                                consentsBySubpop);
                         try (Statement insertIntoConsentsStatement = mySqlConnection.createStatement()) {
                             int rowsInserted = insertIntoConsentsStatement.executeUpdate(insertIntoConsentsQuery);
                             if (rowsInserted != numConsents) {
@@ -278,6 +288,11 @@ public class StormpathToMySqlMigration {
                             }
                         }
                     }
+
+                    // We've already backfilled all the accounts, and new accounts are being written to both sources
+                    // now. If we need to insert another account, this may be an indication of a bug in our MySQL Auth
+                    // DAO or the migration DAO. Log so we can track down.
+                    System.out.println("Inserted account " + accountId);
 
                     numInserted++;
                 } catch (Exception ex) {
@@ -359,20 +374,31 @@ public class StormpathToMySqlMigration {
                 SQL_VALUES_JOINER.join(valueList);
     }
 
-    private static int countConsents(JsonNode consentsBySubpop) {
+    private static int countConsents(String accountId, JsonNode consentsBySubpop) {
         if (consentsBySubpop == null || consentsBySubpop.isNull() || consentsBySubpop.size() == 0) {
             return 0;
         }
 
-        int numConsents = 0;
+        // Sometimes, we have multiple consents that are signed at the same millisecond. This is likely a bug, since
+        // that's not actually possible. If it happens, log a warning and validate manually.
+        Set<Long> uniqueSignedOnSet = new HashSet<>();
         for (JsonNode consentListForSubpop : consentsBySubpop) {
-            numConsents += consentListForSubpop.size();
+            for (JsonNode oneConsent : consentListForSubpop) {
+                Long signedOn = getJsonNumberField(oneConsent, "signedOn");
+                if (uniqueSignedOnSet.contains(signedOn)) {
+                    System.out.println("WARN Found duplicate consent signedOn " + signedOn + " for account " +
+                            accountId);
+                }
+
+                uniqueSignedOnSet.add(signedOn);
+            }
         }
-        return numConsents;
+        return uniqueSignedOnSet.size();
     }
 
-    private static String makeInsertIntoConsentsQuery(String accountId, JsonNode consentsBySubpopNode) {
-        List<String> valueList = new ArrayList<>();
+    private static String makeInsertIntoConsentsQuery(String accountId, long createdOn,
+            JsonNode consentsBySubpopNode) {
+        Map<Long, String> valuesBySignedOn = new HashMap<>();
         Iterator<Map.Entry<String, JsonNode>> consentsBySubpopIter = consentsBySubpopNode.fields();
         while (consentsBySubpopIter.hasNext()) {
             Map.Entry<String, JsonNode> consentsBySubpopEntry = consentsBySubpopIter.next();
@@ -380,6 +406,16 @@ public class StormpathToMySqlMigration {
             JsonNode consentListForSubpop = consentsBySubpopEntry.getValue();
 
             for (JsonNode oneConsent : consentListForSubpop) {
+                Long signedOn = getJsonNumberField(oneConsent,"signedOn");
+                if (signedOn == null) {
+                    signedOn = createdOn;
+                }
+
+                Long consentCreatedOn = getJsonNumberField(oneConsent, "consentCreatedOn");
+                if (consentCreatedOn == null) {
+                    consentCreatedOn = 0L;
+                }
+
                 //noinspection StringBufferReplaceableByString
                 StringBuilder valueBuilder = new StringBuilder();
                 valueBuilder.append("('");
@@ -387,11 +423,11 @@ public class StormpathToMySqlMigration {
                 valueBuilder.append("', '");
                 valueBuilder.append(subpopGuid);
                 valueBuilder.append("', ");
-                valueBuilder.append(getJsonNumberField(oneConsent,"signedOn"));
+                valueBuilder.append(signedOn);
                 valueBuilder.append(", ");
                 valueBuilder.append(serializeJsonTextField(oneConsent, "birthdate"));
                 valueBuilder.append(", ");
-                valueBuilder.append(getJsonNumberField(oneConsent, "consentCreatedOn"));
+                valueBuilder.append(consentCreatedOn);
                 valueBuilder.append(", ");
                 valueBuilder.append(serializeJsonTextField(oneConsent, "name"));
                 valueBuilder.append(", ");
@@ -401,13 +437,13 @@ public class StormpathToMySqlMigration {
                 valueBuilder.append(", ");
                 valueBuilder.append(getJsonNumberField(oneConsent, "withdrewOn"));
                 valueBuilder.append(")");
-                valueList.add(valueBuilder.toString());
+                valuesBySignedOn.put(signedOn, valueBuilder.toString());
             }
         }
 
         return "insert into AccountConsents (accountId, subpopulationGuid, signedOn, birthdate, consentCreatedOn, " +
                 "name, signatureImageData, signatureImageMimeType, withdrewOn) values " +
-                SQL_VALUES_JOINER.join(valueList);
+                SQL_VALUES_JOINER.join(valuesBySignedOn.values());
     }
 
     private static String makeInsertIntoRolesQuery(String accountId, JsonNode roleListNode) {
@@ -422,7 +458,7 @@ public class StormpathToMySqlMigration {
     private static String serializeJsonTextField(JsonNode parent, String key) {
         JsonNode child = parent.get(key);
         if (child != null && !child.isNull()) {
-            return "'" + child.textValue() + "'";
+            return "'" + StringEscapeUtils.escapeSql(child.textValue()) + "'";
         } else {
             return null;
         }
