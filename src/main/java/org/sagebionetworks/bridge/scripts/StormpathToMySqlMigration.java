@@ -389,6 +389,11 @@ public class StormpathToMySqlMigration {
                     signedOn = createdOn;
                 }
 
+                Long consentCreatedOn = getJsonNumberField(oneConsent, "consentCreatedOn");
+                if (consentCreatedOn == null) {
+                    consentCreatedOn = 0L;
+                }
+
                 //noinspection StringBufferReplaceableByString
                 StringBuilder valueBuilder = new StringBuilder();
                 valueBuilder.append("('");
@@ -400,7 +405,7 @@ public class StormpathToMySqlMigration {
                 valueBuilder.append(", ");
                 valueBuilder.append(serializeJsonTextField(oneConsent, "birthdate"));
                 valueBuilder.append(", ");
-                valueBuilder.append(getJsonNumberField(oneConsent, "consentCreatedOn"));
+                valueBuilder.append(consentCreatedOn);
                 valueBuilder.append(", ");
                 valueBuilder.append(serializeJsonTextField(oneConsent, "name"));
                 valueBuilder.append(", ");
