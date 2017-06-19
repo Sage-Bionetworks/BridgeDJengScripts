@@ -216,7 +216,14 @@ public class StormpathToMySqlMigration {
                             // If we found an outdated row in MySQL, this means our Migration Auth Dao is failing to
                             // keep the account info up-to-date. Log, so we can determine how often this is happening
                             // and fix as appropriate.
-                            System.out.println("WARN Found outdated account ID " + accountId);
+                            long delta = Math.abs(jsonModifiedOn - sqlModifiedOn);
+                            if (delta > 1000) {
+                                // Because accounts aren't updated simultaneously and because of clock skew, Stormpath
+                                // accounts might be slightly newer than MySQL accounts. Only log if the Stormpath
+                                // account is significantly newer (by more than a second).
+                                System.out.println("WARN Found outdated account ID " + accountId +
+                                        ", Stormpath account is newer by " + delta + " seconds");
+                            }
 
                             // Metrics
                             numDeleted++;
@@ -253,7 +260,7 @@ public class StormpathToMySqlMigration {
 
                     // insert into AccountConsents
                     JsonNode consentsBySubpop = accountNode.get("consents");
-                    int numConsents = countConsents(consentsBySubpop);
+                    int numConsents = countConsents(accountId, consentsBySubpop);
                     if (numConsents > 0) {
                         String insertIntoConsentsQuery = makeInsertIntoConsentsQuery(accountId, createdOn,
                                 consentsBySubpop);
@@ -362,16 +369,26 @@ public class StormpathToMySqlMigration {
                 SQL_VALUES_JOINER.join(valueList);
     }
 
-    private static int countConsents(JsonNode consentsBySubpop) {
+    private static int countConsents(String accountId, JsonNode consentsBySubpop) {
         if (consentsBySubpop == null || consentsBySubpop.isNull() || consentsBySubpop.size() == 0) {
             return 0;
         }
 
-        int numConsents = 0;
+        // Sometimes, we have multiple consents that are signed at the same millisecond. This is likely a bug, since
+        // that's not actually possible. If it happens, log a warning and validate manually.
+        Set<Long> uniqueSignedOnSet = new HashSet<>();
         for (JsonNode consentListForSubpop : consentsBySubpop) {
-            numConsents += consentListForSubpop.size();
+            for (JsonNode oneConsent : consentListForSubpop) {
+                Long signedOn = getJsonNumberField(oneConsent, "signedOn");
+                if (uniqueSignedOnSet.contains(signedOn)) {
+                    System.out.println("WARN Found duplicate consent signedOn " + signedOn + " for account " +
+                            accountId);
+                }
+
+                uniqueSignedOnSet.add(signedOn);
+            }
         }
-        return numConsents;
+        return uniqueSignedOnSet.size();
     }
 
     private static String makeInsertIntoConsentsQuery(String accountId, long createdOn,
