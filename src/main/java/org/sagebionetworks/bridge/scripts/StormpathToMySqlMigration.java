@@ -205,7 +205,7 @@ public class StormpathToMySqlMigration {
                             // keep the account info up-to-date. Log, so we can determine how often this is happening
                             // and fix as appropriate.
                             System.out.println("WARN Found outdated account ID " + accountId +
-                                    ", Stormpath account is newer by " + delta + " seconds");
+                                    ", Stormpath account is newer by " + delta + " milliseconds");
 
                             // The result set exists and is older than the JSON account info. Delete the old row and
                             // insert new ones. This is certainly not the most efficient way to update SQL, but this
