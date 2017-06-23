@@ -197,11 +197,8 @@ public class TransformStormpathAccounts {
 
                     // Timestamps in Stormpath are ISO8601 (always UTC). Bridge expects them as epoch milliseconds.
                     // createdOn
-                    String isoCreatedOnString = inputAccountNode.get("createdAt").textValue();
-                    long createdOnEpochMillis;
-                    if (StringUtils.isNotBlank(isoCreatedOnString)) {
-                        createdOnEpochMillis = DateTime.parse(isoCreatedOnString).getMillis();
-                    } else {
+                    Long createdOnEpochMillis = parseDateTimeFromJson(inputAccountNode, "createdAt");
+                    if (createdOnEpochMillis == null) {
                         // If Stormpath doesn't know when we created the account, fill in a dummy createdOn timestamp
                         // (aka now).
                         createdOnEpochMillis = DateTime.now().getMillis();
@@ -210,23 +207,26 @@ public class TransformStormpathAccounts {
                     outputAccountNode.put("createdOn", createdOnEpochMillis);
 
                     // modifiedOn
-                    String isoModifiedOnString = inputAccountNode.get("modifiedAt").textValue();
-                    long modifiedOnEpochMillis;
-                    if (StringUtils.isNotBlank(isoModifiedOnString)) {
-                        modifiedOnEpochMillis = DateTime.parse(isoModifiedOnString).getMillis();
-                    } else {
+                    Long modifiedOnEpochMillis = parseDateTimeFromJson(inputAccountNode, "modifiedAt");
+                    if (modifiedOnEpochMillis == null) {
                         // Similarly, fill this in with createdOn
                         modifiedOnEpochMillis = createdOnEpochMillis;
                         System.err.println("ERROR No modifiedAt found for account " + accountId);
                     }
+
+                    // If customData is updated (generally for consents or attributes), accounts.modifiedAt is *not*
+                    // updated. This means that the real modifiedOn is actually the later of accounts.modifiedAt and
+                    // accounts.customData.modifiedAt.
+                    Long customDataModifiedOnMillis = parseDateTimeFromJson(inputAccountNode.get("customData"),
+                            "modifiedAt");
+                    if (customDataModifiedOnMillis != null && customDataModifiedOnMillis > modifiedOnEpochMillis) {
+                        modifiedOnEpochMillis = customDataModifiedOnMillis;
+                    }
                     outputAccountNode.put("modifiedOn", modifiedOnEpochMillis);
 
                     // passwordModifiedOn (which is required even if passwordHash isn't)
-                    String isoPasswordModifiedOnString = inputAccountNode.get("passwordModifiedAt").textValue();
-                    long passwordModifiedOnEpochMillis;
-                    if (StringUtils.isNotBlank(isoPasswordModifiedOnString)) {
-                        passwordModifiedOnEpochMillis = DateTime.parse(isoPasswordModifiedOnString).getMillis();
-                    } else {
+                    Long passwordModifiedOnEpochMillis = parseDateTimeFromJson(inputAccountNode, "passwordModifiedAt");
+                    if (passwordModifiedOnEpochMillis == null) {
                         // For whatever reason, most accounts in Stormpath don't have this value filled in. Assume
                         // that the password has never been changed and fill in with the createdOn.
                         //
@@ -351,6 +351,24 @@ public class TransformStormpathAccounts {
 
         System.out.println(DateTime.now(LOCAL_TIME_ZONE) + ": " + numAccounts + " accounts processed in " +
                 stopwatch.elapsed(TimeUnit.SECONDS) + " seconds...");
+    }
+
+    private static Long parseDateTimeFromJson(JsonNode parent, String key) {
+        JsonNode dateTimeNode = parent.get(key);
+        if (dateTimeNode == null || dateTimeNode.isNull()) {
+            return null;
+        }
+
+        String dateTimeString = dateTimeNode.textValue();
+        if (StringUtils.isBlank(dateTimeString)) {
+            return null;
+        }
+
+        try {
+            return DateTime.parse(dateTimeString).getMillis();
+        } catch (RuntimeException ex) {
+            return null;
+        }
     }
 
     private static Stream<Path> getPathStream() throws IOException {

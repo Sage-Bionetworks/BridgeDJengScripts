@@ -192,11 +192,21 @@ public class StormpathToMySqlMigration {
                     }
 
                     if (hasResult) {
-                        if (sqlModifiedOn >= jsonModifiedOn) {
-                            // If the result exists and is up-to-date, skip.
+                        long delta = Math.abs(jsonModifiedOn - sqlModifiedOn);
+                        if (sqlModifiedOn >= jsonModifiedOn || delta < 5000) {
+                            // SQL account is newer than account in Stormpath dump. Alternatively, because of clock
+                            // skew and because we aren't updating both simultaneously, if the SQL account is older,
+                            // but the difference is less than, say, 5 seconds, we consider it up-to-date.
+                            // Skip up-to-date accounts.
                             numSkipped++;
                             continue;
                         } else {
+                            // If we found an outdated row in MySQL, this means our Migration Auth Dao is failing to
+                            // keep the account info up-to-date. Log, so we can determine how often this is happening
+                            // and fix as appropriate.
+                            System.out.println("WARN Found outdated account ID " + accountId +
+                                    ", Stormpath account is newer by " + delta + " milliseconds");
+
                             // The result set exists and is older than the JSON account info. Delete the old row and
                             // insert new ones. This is certainly not the most efficient way to update SQL, but this
                             // code is simpler than trying to query across 4 tables and figuring out which rows to
@@ -211,18 +221,6 @@ public class StormpathToMySqlMigration {
                                     throw new IllegalStateException("Attempted to delete 1 row for account ID " +
                                             accountId + ", actually deleted " + rowsDeleted);
                                 }
-                            }
-
-                            // If we found an outdated row in MySQL, this means our Migration Auth Dao is failing to
-                            // keep the account info up-to-date. Log, so we can determine how often this is happening
-                            // and fix as appropriate.
-                            long delta = Math.abs(jsonModifiedOn - sqlModifiedOn);
-                            if (delta > 1000) {
-                                // Because accounts aren't updated simultaneously and because of clock skew, Stormpath
-                                // accounts might be slightly newer than MySQL accounts. Only log if the Stormpath
-                                // account is significantly newer (by more than a second).
-                                System.out.println("WARN Found outdated account ID " + accountId +
-                                        ", Stormpath account is newer by " + delta + " seconds");
                             }
 
                             // Metrics
