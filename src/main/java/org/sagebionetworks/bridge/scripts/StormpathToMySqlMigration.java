@@ -47,6 +47,7 @@ public class StormpathToMySqlMigration {
     private static final Set<String> accountWhitelist = new HashSet<>();
     private static final Set<String> envSet = new HashSet<>();
     private static final Map<String, Connection> mySqlConnectionsByEnv = new HashMap<>();
+    private static boolean validationMode = true;
 
     public static void main(String[] args) throws IOException, SQLException {
         // input params
@@ -123,6 +124,13 @@ public class StormpathToMySqlMigration {
             Connection oneConnection = DriverManager.getConnection(url, username, password);
             mySqlConnectionsByEnv.put(oneEnv, oneConnection);
         }
+
+        // validation mode, defaults to true
+        JsonNode validationModeNode = configNode.get("validationMode");
+        if (validationModeNode != null && validationModeNode.isBoolean() && !validationModeNode.booleanValue()) {
+            validationMode = false;
+        }
+        System.out.println("Validation Mode: " + validationMode);
     }
 
     private static void shutdown() throws SQLException {
@@ -207,19 +215,21 @@ public class StormpathToMySqlMigration {
                             System.out.println("WARN Found outdated account ID " + accountId +
                                     ", Stormpath account is newer by " + delta + " milliseconds");
 
-                            // The result set exists and is older than the JSON account info. Delete the old row and
-                            // insert new ones. This is certainly not the most efficient way to update SQL, but this
-                            // code is simpler than trying to query across 4 tables and figuring out which rows to
-                            // update and how.
-                            //
-                            // Note: Just delete the row from Accounts. Foreign key constraints and CASCADE ON DELETE
-                            // will take care of the rest.
-                            try (Statement deleteStatement = mySqlConnection.createStatement()) {
-                                int rowsDeleted = deleteStatement.executeUpdate("delete from Accounts where id='" +
-                                        accountId + "'");
-                                if (rowsDeleted != 1) {
-                                    throw new IllegalStateException("Attempted to delete 1 row for account ID " +
-                                            accountId + ", actually deleted " + rowsDeleted);
+                            if (!validationMode) {
+                                // The result set exists and is older than the JSON account info. Delete the old row and
+                                // insert new ones. This is certainly not the most efficient way to update SQL, but this
+                                // code is simpler than trying to query across 4 tables and figuring out which rows to
+                                // update and how.
+                                //
+                                // Note: Just delete the row from Accounts. Foreign key constraints and CASCADE ON DELETE
+                                // will take care of the rest.
+                                try (Statement deleteStatement = mySqlConnection.createStatement()) {
+                                    int rowsDeleted = deleteStatement.executeUpdate("delete from Accounts where id='" +
+                                            accountId + "'");
+                                    if (rowsDeleted != 1) {
+                                        throw new IllegalStateException("Attempted to delete 1 row for account ID " +
+                                                accountId + ", actually deleted " + rowsDeleted);
+                                    }
                                 }
                             }
 
@@ -228,61 +238,63 @@ public class StormpathToMySqlMigration {
                         }
                     }
 
-                    // At this point, there's definitely no MySQL entry for the account. Transform the account info
-                    // into SQL statements and insert.
+                    if (!validationMode) {
+                        // At this point, there's definitely no MySQL entry for the account. Transform the account info
+                        // into SQL statements and insert.
 
-                    // insert into Accounts
-                    String insertIntoAccountsQuery = makeInsertIntoAccountsQuery(accountNode);
-                    try (Statement insertIntoAccountsStatement = mySqlConnection.createStatement()) {
-                        int rowsInserted = insertIntoAccountsStatement.executeUpdate(insertIntoAccountsQuery);
-                        if (rowsInserted != 1) {
-                            throw new IllegalStateException("Attempted to insert 1 row into Accounts for account ID " +
-                                    accountId + ", actally inserted " + rowsInserted);
-                        }
-                    }
-
-                    // insert into AccountAttributes
-                    JsonNode attributesNode = accountNode.get("attributes");
-                    if (attributesNode != null && !attributesNode.isNull() && attributesNode.size() > 0) {
-                        int numAttributes = attributesNode.size();
-                        String insertIntoAttributesQuery = makeInsertIntoAttributesQuery(accountId, attributesNode);
-                        try (Statement insertIntoAttributesStatement = mySqlConnection.createStatement()) {
-                            int rowsInserted = insertIntoAttributesStatement.executeUpdate(insertIntoAttributesQuery);
-                            if (rowsInserted != numAttributes) {
-                                throw new IllegalStateException("Attempted to insert " + numAttributes + " rows " +
-                                        "into AccountAttributes for account ID " + accountId + ", actually inserted " +
-                                        rowsInserted);
+                        // insert into Accounts
+                        String insertIntoAccountsQuery = makeInsertIntoAccountsQuery(accountNode);
+                        try (Statement insertIntoAccountsStatement = mySqlConnection.createStatement()) {
+                            int rowsInserted = insertIntoAccountsStatement.executeUpdate(insertIntoAccountsQuery);
+                            if (rowsInserted != 1) {
+                                throw new IllegalStateException("Attempted to insert 1 row into Accounts for account ID " +
+                                                accountId + ", actally inserted " + rowsInserted);
                             }
                         }
-                    }
 
-                    // insert into AccountConsents
-                    JsonNode consentsBySubpop = accountNode.get("consents");
-                    int numConsents = countConsents(accountId, consentsBySubpop);
-                    if (numConsents > 0) {
-                        String insertIntoConsentsQuery = makeInsertIntoConsentsQuery(accountId, createdOn,
-                                consentsBySubpop);
-                        try (Statement insertIntoConsentsStatement = mySqlConnection.createStatement()) {
-                            int rowsInserted = insertIntoConsentsStatement.executeUpdate(insertIntoConsentsQuery);
-                            if (rowsInserted != numConsents) {
-                                throw new IllegalStateException("Attempted to insert " + numConsents + " rows into " +
-                                        "AccountConsents for account ID " + accountId + ", actually inserted " +
-                                        rowsInserted);
+                        // insert into AccountAttributes
+                        JsonNode attributesNode = accountNode.get("attributes");
+                        if (attributesNode != null && !attributesNode.isNull() && attributesNode.size() > 0) {
+                            int numAttributes = attributesNode.size();
+                            String insertIntoAttributesQuery = makeInsertIntoAttributesQuery(accountId, attributesNode);
+                            try (Statement insertIntoAttributesStatement = mySqlConnection.createStatement()) {
+                                int rowsInserted = insertIntoAttributesStatement.executeUpdate(insertIntoAttributesQuery);
+                                if (rowsInserted != numAttributes) {
+                                    throw new IllegalStateException("Attempted to insert " + numAttributes + " rows " +
+                                            "into AccountAttributes for account ID " + accountId + ", actually inserted " +
+                                            rowsInserted);
+                                }
                             }
                         }
-                    }
 
-                    // insert into AccountRoles
-                    JsonNode roleListNode = accountNode.get("roles");
-                    if (roleListNode != null && !roleListNode.isNull() && roleListNode.size() > 0) {
-                        int numRoles = roleListNode.size();
-                        String insertIntoRolesQuery = makeInsertIntoRolesQuery(accountId, roleListNode);
-                        try (Statement insertIntoRolesStatement = mySqlConnection.createStatement()) {
-                            int rowsInserted = insertIntoRolesStatement.executeUpdate(insertIntoRolesQuery);
-                            if (rowsInserted != numRoles) {
-                                throw new IllegalStateException("Attempted to insert " + numRoles + " rows into " +
-                                        "AccountRoles for account ID " + accountId + ", actually inserted " +
-                                        rowsInserted);
+                        // insert into AccountConsents
+                        JsonNode consentsBySubpop = accountNode.get("consents");
+                        int numConsents = countConsents(accountId, consentsBySubpop);
+                        if (numConsents > 0) {
+                            String insertIntoConsentsQuery = makeInsertIntoConsentsQuery(accountId, createdOn,
+                                    consentsBySubpop);
+                            try (Statement insertIntoConsentsStatement = mySqlConnection.createStatement()) {
+                                int rowsInserted = insertIntoConsentsStatement.executeUpdate(insertIntoConsentsQuery);
+                                if (rowsInserted != numConsents) {
+                                    throw new IllegalStateException("Attempted to insert " + numConsents + " rows into " +
+                                            "AccountConsents for account ID " + accountId + ", actually inserted " +
+                                            rowsInserted);
+                                }
+                            }
+                        }
+
+                        // insert into AccountRoles
+                        JsonNode roleListNode = accountNode.get("roles");
+                        if (roleListNode != null && !roleListNode.isNull() && roleListNode.size() > 0) {
+                            int numRoles = roleListNode.size();
+                            String insertIntoRolesQuery = makeInsertIntoRolesQuery(accountId, roleListNode);
+                            try (Statement insertIntoRolesStatement = mySqlConnection.createStatement()) {
+                                int rowsInserted = insertIntoRolesStatement.executeUpdate(insertIntoRolesQuery);
+                                if (rowsInserted != numRoles) {
+                                    throw new IllegalStateException("Attempted to insert " + numRoles + " rows into " +
+                                            "AccountRoles for account ID " + accountId + ", actually inserted " +
+                                            rowsInserted);
+                                }
                             }
                         }
                     }

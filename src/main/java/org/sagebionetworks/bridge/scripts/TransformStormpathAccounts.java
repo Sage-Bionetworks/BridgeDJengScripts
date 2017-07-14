@@ -244,7 +244,9 @@ public class TransformStormpathAccounts {
                         if (passwordHash.startsWith("$stormpath")) {
                             passwordAlgorithm = "STORMPATH_HMAC_SHA_256";
                         } else if (passwordHash.startsWith("$2")) {
-                            passwordAlgorithm = "BCRYPT";
+                            // Disable bcrypt passwords, since they're known to be not working in Stormpath exports.
+                            System.err.println("ERROR bcrypt password found for account " + accountId);
+                            continue;
                         } else {
                             System.err.println("ERROR Cannot identify password algorithm for account " + accountId +
                                     " password hash " + passwordHash);
