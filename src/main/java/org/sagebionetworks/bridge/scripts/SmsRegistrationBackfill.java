@@ -1,10 +1,13 @@
 package org.sagebionetworks.bridge.scripts;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.TreeMultiset;
@@ -13,13 +16,18 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import org.sagebionetworks.bridge.helper.BridgeResearcherHelper;
+import org.sagebionetworks.bridge.rest.ClientManager;
 import org.sagebionetworks.bridge.rest.model.AccountSummary;
+import org.sagebionetworks.bridge.rest.model.ClientInfo;
 import org.sagebionetworks.bridge.rest.model.NotificationProtocol;
 import org.sagebionetworks.bridge.rest.model.NotificationRegistration;
+import org.sagebionetworks.bridge.rest.model.SignIn;
 import org.sagebionetworks.bridge.rest.model.StudyParticipant;
 
 public class SmsRegistrationBackfill {
+    private static final ClientInfo CLIENT_INFO = new ClientInfo().appName("SmsRegistrationBackfill").appVersion(1);
     private static final DateTimeZone LOCAL_TIME_ZONE = DateTimeZone.forID("America/Los_Angeles");
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
     // If there are a lot of users, write log messages regularly so we know the worker is still running.
     private static final int REPORTING_INTERVAL = 100;
@@ -27,6 +35,31 @@ public class SmsRegistrationBackfill {
     private final BridgeResearcherHelper bridgeResearcherHelper;
     private final Multiset<String> metrics = TreeMultiset.create();
     private final RateLimiter perUserRateLimiter = RateLimiter.create(1.0);
+
+    public static void main(String[] args) throws IOException {
+        if (args.length != 1) {
+            logInfo("Usage: SmsRegistrationBackfill [path to config JSON]");
+            return;
+        }
+
+        // Init.
+        logInfo("Initializing...");
+        JsonNode configNode = JSON_MAPPER.readTree(new File(args[0]));
+        String researcherStudyId = configNode.get("researcherStudyId").textValue();
+        String researcherEmail = configNode.get("researcherEmail").textValue();
+        String researcherPassword = configNode.get("researcherPassword").textValue();
+
+        SignIn researcherSignIn = new SignIn().study(researcherStudyId).email(researcherEmail)
+                .password(researcherPassword);
+        ClientManager clientManager = new ClientManager.Builder().withClientInfo(CLIENT_INFO)
+                .withSignIn(researcherSignIn).build();
+
+        BridgeResearcherHelper bridgeResearcherHelper = new BridgeResearcherHelper(clientManager);
+        SmsRegistrationBackfill backfill = new SmsRegistrationBackfill(bridgeResearcherHelper);
+
+        // Execute.
+        backfill.execute();
+    }
 
     public SmsRegistrationBackfill(BridgeResearcherHelper bridgeResearcherHelper) {
         this.bridgeResearcherHelper = bridgeResearcherHelper;
