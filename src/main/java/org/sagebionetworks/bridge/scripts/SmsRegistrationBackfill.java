@@ -1,5 +1,8 @@
 package org.sagebionetworks.bridge.scripts;
 
+import static org.sagebionetworks.bridge.helper.LogHelper.logError;
+import static org.sagebionetworks.bridge.helper.LogHelper.logInfo;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
@@ -12,10 +15,8 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.TreeMultiset;
 import com.google.common.util.concurrent.RateLimiter;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
-import org.sagebionetworks.bridge.helper.BridgeResearcherHelper;
+import org.sagebionetworks.bridge.helper.BridgeHelper;
 import org.sagebionetworks.bridge.rest.ClientManager;
 import org.sagebionetworks.bridge.rest.model.AccountSummary;
 import org.sagebionetworks.bridge.rest.model.ClientInfo;
@@ -26,13 +27,12 @@ import org.sagebionetworks.bridge.rest.model.StudyParticipant;
 
 public class SmsRegistrationBackfill {
     private static final ClientInfo CLIENT_INFO = new ClientInfo().appName("SmsRegistrationBackfill").appVersion(1);
-    private static final DateTimeZone LOCAL_TIME_ZONE = DateTimeZone.forID("America/Los_Angeles");
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
     // If there are a lot of users, write log messages regularly so we know the worker is still running.
     private static final int REPORTING_INTERVAL = 100;
 
-    private final BridgeResearcherHelper bridgeResearcherHelper;
+    private final BridgeHelper bridgeHelper;
     private final Multiset<String> metrics = TreeMultiset.create();
     private final RateLimiter perUserRateLimiter = RateLimiter.create(1.0);
 
@@ -54,21 +54,21 @@ public class SmsRegistrationBackfill {
         ClientManager clientManager = new ClientManager.Builder().withClientInfo(CLIENT_INFO)
                 .withSignIn(researcherSignIn).build();
 
-        BridgeResearcherHelper bridgeResearcherHelper = new BridgeResearcherHelper(clientManager);
-        SmsRegistrationBackfill backfill = new SmsRegistrationBackfill(bridgeResearcherHelper);
+        BridgeHelper bridgeHelper = new BridgeHelper(clientManager);
+        SmsRegistrationBackfill backfill = new SmsRegistrationBackfill(bridgeHelper);
 
         // Execute.
         backfill.execute();
     }
 
-    public SmsRegistrationBackfill(BridgeResearcherHelper bridgeResearcherHelper) {
-        this.bridgeResearcherHelper = bridgeResearcherHelper;
+    public SmsRegistrationBackfill(BridgeHelper bridgeHelper) {
+        this.bridgeHelper = bridgeHelper;
     }
 
     public void execute() {
         logInfo("Starting backfill...");
 
-        Iterator<AccountSummary> accountSummaryIter = bridgeResearcherHelper.getAllAccountSummaries();
+        Iterator<AccountSummary> accountSummaryIter = bridgeHelper.getAllAccountSummaries();
 
         int numUsers = 0;
         Stopwatch stopwatch = Stopwatch.createStarted();
@@ -110,7 +110,7 @@ public class SmsRegistrationBackfill {
 
         // Filter out accounts that already have an SMS registration. This is the first filter, since (after
         // backfilling and implementing client-side registration), most of these will already have an SMS registration.
-        List<NotificationRegistration> registrationList = bridgeResearcherHelper
+        List<NotificationRegistration> registrationList = bridgeHelper
                 .getParticipantNotificationRegistrations(userId);
         for (NotificationRegistration registration : registrationList) {
             if (registration.getProtocol() == NotificationProtocol.SMS) {
@@ -121,7 +121,7 @@ public class SmsRegistrationBackfill {
 
         // Next, filter out users who don't have a verified phone number. This filters out test users, admins and
         // developers, and users who downloaded the app but didn't finish registration.
-        StudyParticipant participant = bridgeResearcherHelper.getParticipant(userId);
+        StudyParticipant participant = bridgeHelper.getParticipant(userId);
         if (participant.isPhoneVerified() != Boolean.TRUE) {
             metrics.add("phone_not_verified");
             return;
@@ -135,22 +135,7 @@ public class SmsRegistrationBackfill {
         }
 
         // We need to create SMS registration for this user.
-        bridgeResearcherHelper.createSmsRegistration(userId);
+        bridgeHelper.createSmsRegistration(userId);
         metrics.add("created_registration");
-    }
-
-    private static void logInfo(String msg) {
-        System.out.print('[');
-        System.out.print(DateTime.now(LOCAL_TIME_ZONE));
-        System.out.print(']');
-        System.out.println(msg);
-    }
-
-    private static void logError(String msg, Throwable ex) {
-        System.err.print('[');
-        System.err.print(DateTime.now(LOCAL_TIME_ZONE));
-        System.err.print(']');
-        System.err.println(msg);
-        ex.printStackTrace();
     }
 }

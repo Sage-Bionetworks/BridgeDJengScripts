@@ -3,19 +3,23 @@ package org.sagebionetworks.bridge.helper;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import com.jcabi.aspects.Cacheable;
 
 import org.sagebionetworks.bridge.rest.ClientManager;
 import org.sagebionetworks.bridge.rest.api.ForResearchersApi;
 import org.sagebionetworks.bridge.rest.api.InternalApi;
 import org.sagebionetworks.bridge.rest.model.AccountSummary;
+import org.sagebionetworks.bridge.rest.model.HealthDataSubmission;
 import org.sagebionetworks.bridge.rest.model.NotificationRegistration;
 import org.sagebionetworks.bridge.rest.model.StudyParticipant;
 
 /** Abstracts away calls to Bridge and wraps the iterator classes. */
-public class BridgeResearcherHelper {
+public class BridgeHelper {
     private final ClientManager clientManager;
 
-    public BridgeResearcherHelper(ClientManager clientManager) {
+    public BridgeHelper(ClientManager clientManager) {
         this.clientManager = clientManager;
     }
 
@@ -32,6 +36,7 @@ public class BridgeResearcherHelper {
     }
 
     /** Gets a participant for the given user in the given study. */
+    @Cacheable(lifetime = 5, unit = TimeUnit.MINUTES)
     public StudyParticipant getParticipant(String userId) throws IOException {
         return clientManager.getClient(ForResearchersApi.class).getParticipantById(userId, true).execute()
                 .body();
@@ -40,5 +45,9 @@ public class BridgeResearcherHelper {
     public List<NotificationRegistration> getParticipantNotificationRegistrations(String userId) throws IOException {
         return clientManager.getClient(ForResearchersApi.class).getParticipantPushNotificationRegistrations(userId)
                 .execute().body().getItems();
+    }
+
+    public void submitHealthDataForParticipant(String userId, HealthDataSubmission submission) throws IOException {
+        clientManager.getClient(InternalApi.class).submitHealthDataForParticipant(userId, submission).execute();
     }
 }
