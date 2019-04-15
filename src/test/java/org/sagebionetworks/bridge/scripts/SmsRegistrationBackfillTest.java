@@ -10,7 +10,11 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+<<<<<<< HEAD
 import org.sagebionetworks.bridge.helper.BridgeResearcherHelper;
+=======
+import org.sagebionetworks.bridge.helper.BridgeHelper;
+>>>>>>> 684a5dd08900bb300e7514cc0eb2177a7a44b030
 import org.sagebionetworks.bridge.rest.api.ForConsentedUsersApi;
 import org.sagebionetworks.bridge.rest.api.ForResearchersApi;
 import org.sagebionetworks.bridge.rest.model.NotificationProtocol;
@@ -87,8 +91,13 @@ public class SmsRegistrationBackfillTest {
 
     private static void executeBackfill() {
         // Wire up dependencies.
+<<<<<<< HEAD
         BridgeResearcherHelper bridgeResearcherHelper = new BridgeResearcherHelper(researcher.getClientManager());
         SmsRegistrationBackfill backfill = new SmsRegistrationBackfill(bridgeResearcherHelper);
+=======
+        BridgeHelper bridgeHelper = new BridgeHelper(researcher.getClientManager());
+        SmsRegistrationBackfill backfill = new SmsRegistrationBackfill(bridgeHelper);
+>>>>>>> 684a5dd08900bb300e7514cc0eb2177a7a44b030
         backfill.execute();
     }
 
