@@ -85,7 +85,7 @@ public class ExporterPermissionsBackfill {
         String synapseUser = configNode.get("synapseUser").textValue();
         String synapseApiKey = configNode.get("synapseApiKey").textValue();
         synapseClient = new SynapseClientImpl();
-        synapseClient.setUserName(synapseUser);
+        synapseClient.setUsername(synapseUser);
         synapseClient.setApiKey(synapseApiKey);
     }
 

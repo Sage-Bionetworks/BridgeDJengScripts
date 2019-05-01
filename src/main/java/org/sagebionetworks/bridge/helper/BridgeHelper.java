@@ -9,10 +9,13 @@ import com.jcabi.aspects.Cacheable;
 
 import org.sagebionetworks.bridge.rest.ClientManager;
 import org.sagebionetworks.bridge.rest.api.ForResearchersApi;
+import org.sagebionetworks.bridge.rest.api.ForWorkersApi;
 import org.sagebionetworks.bridge.rest.api.InternalApi;
+import org.sagebionetworks.bridge.rest.api.PublicApi;
 import org.sagebionetworks.bridge.rest.model.AccountSummary;
 import org.sagebionetworks.bridge.rest.model.HealthDataSubmission;
 import org.sagebionetworks.bridge.rest.model.NotificationRegistration;
+import org.sagebionetworks.bridge.rest.model.Study;
 import org.sagebionetworks.bridge.rest.model.StudyParticipant;
 
 /** Abstracts away calls to Bridge and wraps the iterator classes. */
@@ -49,5 +52,13 @@ public class BridgeHelper {
 
     public void submitHealthDataForParticipant(String userId, HealthDataSubmission submission) throws IOException {
         clientManager.getClient(InternalApi.class).submitHealthDataForParticipant(userId, submission).execute();
+    }
+
+    public Study getStudy(String studyId) throws IOException {
+        return clientManager.getClient(ForWorkersApi.class).getStudy(studyId).execute().body();
+    }
+
+    public List<Study> getStudySummaries() throws IOException {
+        return clientManager.getClient(PublicApi.class).getStudies(true).execute().body().getItems();
     }
 }
