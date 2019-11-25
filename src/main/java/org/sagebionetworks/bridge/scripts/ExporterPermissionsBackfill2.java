@@ -46,7 +46,7 @@ public class ExporterPermissionsBackfill2 {
     private static final ClientInfo CLIENT_INFO = new ClientInfo().appName("ExporterPermissionsBackfill").appVersion(2);
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
-    private static final Set<ACCESS_TYPE> ACCESS_TYPE_ADMIN = ModelConstants.ENITY_ADMIN_ACCESS_PERMISSIONS;
+    private static final Set<ACCESS_TYPE> ACCESS_TYPE_ADMIN = ModelConstants.ENTITY_ADMIN_ACCESS_PERMISSIONS;
     private static final Set<ACCESS_TYPE> ACCESS_TYPE_READ = ImmutableSet.of(ACCESS_TYPE.READ, ACCESS_TYPE.DOWNLOAD);
 
     private final long bridgeAdminTeamId;
