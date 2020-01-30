@@ -8,7 +8,7 @@
     <version>1.0</version>
 
     <properties>
-        <aws.version>1.11.676</aws.version>
+        <aws.version>1.11.714</aws.version>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
@@ -57,6 +57,11 @@
             <version>6.0.6</version>
         </dependency>
         <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.13</version>
+        </dependency>
+        <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>fluent-hc</artifactId>
             <version>4.5.10</version>
@@ -74,7 +79,7 @@
         <dependency>
             <groupId>org.sagebionetworks</groupId>
             <artifactId>synapseJavaClient</artifactId>
-            <version>268.02</version>
+            <version>294.0</version>
         </dependency>
         <dependency>
             <groupId>org.sagebionetworks.bridge</groupId>
