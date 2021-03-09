@@ -25,9 +25,9 @@ import org.sagebionetworks.repo.model.util.ModelConstants;
 
 import org.sagebionetworks.bridge.helper.BridgeHelper;
 import org.sagebionetworks.bridge.rest.ClientManager;
+import org.sagebionetworks.bridge.rest.model.App;
 import org.sagebionetworks.bridge.rest.model.ClientInfo;
 import org.sagebionetworks.bridge.rest.model.SignIn;
-import org.sagebionetworks.bridge.rest.model.Study;
 
 /**
  * <p>
@@ -46,7 +46,7 @@ public class ExporterPermissionsBackfill2 {
     private static final ClientInfo CLIENT_INFO = new ClientInfo().appName("ExporterPermissionsBackfill").appVersion(2);
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
-    private static final Set<ACCESS_TYPE> ACCESS_TYPE_ADMIN = ModelConstants.ENITY_ADMIN_ACCESS_PERMISSIONS;
+    private static final Set<ACCESS_TYPE> ACCESS_TYPE_ADMIN = ModelConstants.ENTITY_ADMIN_ACCESS_PERMISSIONS;
     private static final Set<ACCESS_TYPE> ACCESS_TYPE_READ = ImmutableSet.of(ACCESS_TYPE.READ, ACCESS_TYPE.DOWNLOAD);
 
     private final long bridgeAdminTeamId;
@@ -82,7 +82,7 @@ public class ExporterPermissionsBackfill2 {
         String workerEmail = configNode.get("workerEmail").textValue();
         String workerPassword = configNode.get("workerPassword").textValue();
 
-        SignIn workerSignIn = new SignIn().study(workerStudyId).email(workerEmail).password(workerPassword);
+        SignIn workerSignIn = new SignIn().appId(workerStudyId).email(workerEmail).password(workerPassword);
         ClientManager clientManager = new ClientManager.Builder().withClientInfo(CLIENT_INFO).withSignIn(workerSignIn)
                 .build();
         bridgeHelper = new BridgeHelper(clientManager);
@@ -99,8 +99,8 @@ public class ExporterPermissionsBackfill2 {
         logInfo("Adding teams to studies...");
 
         // Iterate over studies.
-        List<Study> studySummaryList = bridgeHelper.getStudySummaries();
-        for (Study studySummary : studySummaryList) {
+        List<App> studySummaryList = bridgeHelper.getAppSummaries();
+        for (App studySummary : studySummaryList) {
             String studyId = studySummary.getIdentifier();
             try {
                 handleStudy(studyId);
@@ -115,7 +115,7 @@ public class ExporterPermissionsBackfill2 {
         rateLimiter.acquire(3);
 
         // Get Synapse project from study and check if project exists.
-        Study study = bridgeHelper.getStudy(studyId);
+        App study = bridgeHelper.getApp(studyId);
         String projectId = study.getSynapseProjectId();
         if (projectId == null) {
             logInfo("Study " + studyId + " has no Synapse project, skipping...");
