@@ -17,7 +17,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableMap;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 // Incomplete uploads don't have uploadDate. This means if someone in StJ uploaded to S3 but didn't call upload
 // complete, we have no way of knowing whether it's before or after the cut-off date. To be safe, delete the upload

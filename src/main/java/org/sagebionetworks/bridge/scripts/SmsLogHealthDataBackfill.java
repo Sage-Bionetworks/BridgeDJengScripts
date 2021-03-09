@@ -54,7 +54,7 @@ public class SmsLogHealthDataBackfill {
         String researcherEmail = configNode.get("researcherEmail").textValue();
         String researcherPassword = configNode.get("researcherPassword").textValue();
 
-        SignIn researcherSignIn = new SignIn().study(researcherStudyId).email(researcherEmail).password(
+        SignIn researcherSignIn = new SignIn().appId(researcherStudyId).email(researcherEmail).password(
                 researcherPassword);
         ClientManager clientManager = new ClientManager.Builder().withClientInfo(CLIENT_INFO)
                 .withSignIn(researcherSignIn).build();
