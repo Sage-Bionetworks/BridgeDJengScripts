@@ -31,11 +31,11 @@ public class BridgeHelper {
     }
 
     /**
-     * Get an iterator for all account summaries in the given study. Note that since getAllAccountSummaries is a
+     * Get an iterator for all account summaries in the given app. Note that since getAccountSummariesForApp is a
      * paginated API, the iterator may continue to call the server.
      */
-    public Iterator<AccountSummary> getAllAccountSummaries() {
-        return new AccountSummaryIterator(clientManager);
+    public Iterator<AccountSummary> getAccountSummariesForApp(String appId) {
+        return new AccountSummaryIterator(clientManager, appId);
     }
 
     /** Gets a participant for the given user in the given study. */

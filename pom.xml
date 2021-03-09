@@ -12,7 +12,6 @@
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
-        <stormpath.version>1.0.RC9.2</stormpath.version>
     </properties>
 
     <dependencies>
@@ -32,24 +31,19 @@
             <version>${aws.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-sns</artifactId>
+            <version>${aws.version}</version>
+        </dependency>
+        <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>19.0</version>
+            <version>30.1-jre</version>
         </dependency>
         <dependency>
             <groupId>com.jcabi</groupId>
             <artifactId>jcabi-aspects</artifactId>
             <version>0.22.5</version>
-        </dependency>
-        <dependency>
-            <groupId>com.stormpath.sdk</groupId>
-            <artifactId>stormpath-sdk-api</artifactId>
-            <version>${stormpath.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.stormpath.sdk</groupId>
-            <artifactId>stormpath-sdk-httpclient</artifactId>
-            <version>${stormpath.version}</version>
         </dependency>
         <dependency>
             <groupId>mysql</groupId>
