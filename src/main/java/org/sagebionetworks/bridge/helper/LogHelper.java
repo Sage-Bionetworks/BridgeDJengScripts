@@ -13,6 +13,13 @@ public class LogHelper {
         System.out.println(msg);
     }
 
+    public static void logError(String msg) {
+        System.err.print('[');
+        System.err.print(DateTime.now(LOCAL_TIME_ZONE));
+        System.err.print(']');
+        System.err.println(msg);
+    }
+
     public static void logError(String msg, Throwable ex) {
         System.err.print('[');
         System.err.print(DateTime.now(LOCAL_TIME_ZONE));
