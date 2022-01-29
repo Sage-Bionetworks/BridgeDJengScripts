@@ -2,6 +2,7 @@ package org.sagebionetworks.bridge.helper;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -23,30 +24,33 @@ import retrofit2.Call;
 import retrofit2.Response;
 
 import org.sagebionetworks.bridge.rest.ClientManager;
-import org.sagebionetworks.bridge.rest.api.ForResearchersApi;
+import org.sagebionetworks.bridge.rest.api.ForWorkersApi;
 import org.sagebionetworks.bridge.rest.model.AccountSummary;
 import org.sagebionetworks.bridge.rest.model.AccountSummaryList;
 import org.sagebionetworks.bridge.rest.model.AccountSummarySearch;
 
-@SuppressWarnings("unchecked")
+@SuppressWarnings({ "ConstantConditions", "unchecked" })
 public class AccountSummaryIteratorTest {
+    private static final String APP_ID = "dummy-app-id";
+    private static final int PAGE_SIZE = 5;
+    private static final double RATE_LIMIT = 1000.0;
     private static final String USER_ID_PREFIX = "dummy-user-id-";
 
     private ClientManager mockClientManager;
-    private ForResearchersApi mockApi;
+    private ForWorkersApi mockApi;
 
     @BeforeMethod
     public void setup() {
-        mockApi = mock(ForResearchersApi.class);
+        mockApi = mock(ForWorkersApi.class);
 
         mockClientManager = mock(ClientManager.class);
-        when(mockClientManager.getClient(ForResearchersApi.class)).thenReturn(mockApi);
+        when(mockClientManager.getClient(ForWorkersApi.class)).thenReturn(mockApi);
     }
 
     @Test
     public void testWith0Users() throws Exception {
         mockApiWithPage(0, 0, 0);
-        AccountSummaryIterator iter = new AccountSummaryIterator(mockClientManager);
+        AccountSummaryIterator iter = new AccountSummaryIterator(mockClientManager, APP_ID, PAGE_SIZE, RATE_LIMIT);
         assertFalse(iter.hasNext());
     }
 
@@ -58,23 +62,23 @@ public class AccountSummaryIteratorTest {
 
     @Test
     public void testWith1Page() throws Exception {
-        mockApiWithPage(0, AccountSummaryIterator.PAGE_SIZE, AccountSummaryIterator.PAGE_SIZE);
-        testIterator(AccountSummaryIterator.PAGE_SIZE);
+        mockApiWithPage(0, PAGE_SIZE, PAGE_SIZE);
+        testIterator(PAGE_SIZE);
     }
 
     @Test
     public void testWith1PagePlus1User() throws Exception {
-        mockApiWithPage(0, AccountSummaryIterator.PAGE_SIZE, AccountSummaryIterator.PAGE_SIZE + 1);
-        mockApiWithPage(AccountSummaryIterator.PAGE_SIZE, 1, AccountSummaryIterator.PAGE_SIZE + 1);
-        testIterator(AccountSummaryIterator.PAGE_SIZE + 1);
+        mockApiWithPage(0, PAGE_SIZE, PAGE_SIZE + 1);
+        mockApiWithPage(PAGE_SIZE, 1, PAGE_SIZE + 1);
+        testIterator(PAGE_SIZE + 1);
     }
 
     @Test
     public void testWith2Pages() throws Exception {
-        mockApiWithPage(0, AccountSummaryIterator.PAGE_SIZE, 2 * AccountSummaryIterator.PAGE_SIZE);
-        mockApiWithPage(AccountSummaryIterator.PAGE_SIZE, AccountSummaryIterator.PAGE_SIZE,
-                2 * AccountSummaryIterator.PAGE_SIZE);
-        testIterator(2 * AccountSummaryIterator.PAGE_SIZE);
+        mockApiWithPage(0, PAGE_SIZE, 2 * PAGE_SIZE);
+        mockApiWithPage(PAGE_SIZE, PAGE_SIZE,
+                2 * PAGE_SIZE);
+        testIterator(2 * PAGE_SIZE);
     }
 
     @Test
@@ -83,13 +87,13 @@ public class AccountSummaryIteratorTest {
         mockApiWithPage(0, 2, 2);
 
         // Create iterator. Verify initial call to server.
-        AccountSummaryIterator iter = new AccountSummaryIterator(mockClientManager);
+        AccountSummaryIterator iter = new AccountSummaryIterator(mockClientManager, APP_ID, PAGE_SIZE, RATE_LIMIT);
 
         ArgumentCaptor<AccountSummarySearch> searchCaptor = ArgumentCaptor.forClass(AccountSummarySearch.class);
-        verify(mockApi).searchAccountSummaries(searchCaptor.capture());
+        verify(mockApi).searchAccountSummariesForApp(eq(APP_ID), searchCaptor.capture());
 
         AccountSummarySearch search = searchCaptor.getValue();
-        assertEquals(search.getPageSize().intValue(), AccountSummaryIterator.PAGE_SIZE);
+        assertEquals(search.getPageSize().intValue(), PAGE_SIZE);
         assertEquals(search.getOffsetBy().intValue(), 0);
 
         // Make a few extra calls to hasNext(). Verify that no server calls are made
@@ -108,28 +112,28 @@ public class AccountSummaryIteratorTest {
         // Mock page call to throw
         Call<AccountSummaryList> mockPageCall = mock(Call.class);
         when(mockPageCall.execute()).thenThrow(IOException.class);
-        doReturn(mockPageCall).when(mockApi).searchAccountSummaries(any());
+        doReturn(mockPageCall).when(mockApi).searchAccountSummariesForApp(any(), any());
 
         // Execute
-        new AccountSummaryIterator(mockClientManager);
+        new AccountSummaryIterator(mockClientManager, APP_ID, PAGE_SIZE, RATE_LIMIT);
     }
 
     @Test
     public void errorGettingSecondPageRetries() throws Exception {
         // For simplicity, pageSize=1, 3 pages. Note that this is a little bit contrived, because even though the page
-        // size parameter is 10, we return three 1-item pages.
+        // size parameter is 100, we return three 1-item pages.
         mockApiWithPage(0, 1, 3);
 
         Response<AccountSummaryList> secondPageResponse = makePageResponse(1, 1, 3);
         Call<AccountSummaryList> mockSecondPageCall = mock(Call.class);
         when(mockSecondPageCall.execute()).thenThrow(IOException.class).thenReturn(secondPageResponse);
-        doReturn(mockSecondPageCall).when(mockApi).searchAccountSummaries(argThat(
-                search -> search.getOffsetBy() == 1));
+        doReturn(mockSecondPageCall).when(mockApi).searchAccountSummariesForApp(eq(APP_ID),
+                argThat(search -> search.getOffsetBy() == 1));
 
         mockApiWithPage(2, 1, 3);
 
         // Execute and validate
-        AccountSummaryIterator iter = new AccountSummaryIterator(mockClientManager);
+        AccountSummaryIterator iter = new AccountSummaryIterator(mockClientManager, APP_ID);
 
         // User 0
         assertTrue(iter.hasNext());
@@ -163,7 +167,7 @@ public class AccountSummaryIteratorTest {
         mockApiWithPage(0, 1, 1);
 
         // next() twice throws
-        AccountSummaryIterator iter = new AccountSummaryIterator(mockClientManager);
+        AccountSummaryIterator iter = new AccountSummaryIterator(mockClientManager, APP_ID);
         iter.next();
         try {
             iter.next();
@@ -178,30 +182,31 @@ public class AccountSummaryIteratorTest {
         Response<AccountSummaryList> pageResponse = makePageResponse(offset, accountsInPage, total);
         Call<AccountSummaryList> mockPageCall = mock(Call.class);
         when(mockPageCall.execute()).thenReturn(pageResponse);
-        doReturn(mockPageCall).when(mockApi).searchAccountSummaries(argThat(search -> search.getOffsetBy() == offset));
+        doReturn(mockPageCall).when(mockApi).searchAccountSummariesForApp(eq(APP_ID),
+                argThat(search -> search.getOffsetBy() == offset));
     }
 
     private Response<AccountSummaryList> makePageResponse(int offset, int accountsInPage, int total) {
-        // Make list page
-        AccountSummaryList accountSummaryList = new AccountSummaryList();
-        accountSummaryList.setTotal(total);
+        // Mock list page.
+        AccountSummaryList mockSummaryList = mock(AccountSummaryList.class);
+        when(mockSummaryList.getTotal()).thenReturn(total);
 
-        // Make page elements
+        // Mock page elements.
         List<AccountSummary> items = new ArrayList<>();
         for (int i = 0; i < accountsInPage; i++) {
-            AccountSummary accountSummary = new AccountSummary();
-            accountSummary.setId(USER_ID_PREFIX + (offset + i));
-            items.add(accountSummary);
+            AccountSummary mockSummary = mock(AccountSummary.class);
+            when(mockSummary.getId()).thenReturn(USER_ID_PREFIX + (offset + i));
+            items.add(mockSummary);
         }
-        accountSummaryList.setItems(items);
+        when(mockSummaryList.getItems()).thenReturn(items);
 
         // Mock Response and Call to return this.
-        Response<AccountSummaryList> pageResponse = Response.success(accountSummaryList);
+        Response<AccountSummaryList> pageResponse = Response.success(mockSummaryList);
         return pageResponse;
     }
 
     private void testIterator(int expectedCount) {
-        AccountSummaryIterator iter = new AccountSummaryIterator(mockClientManager);
+        AccountSummaryIterator iter = new AccountSummaryIterator(mockClientManager, APP_ID, PAGE_SIZE, RATE_LIMIT);
 
         int numAccounts = 0;
         while (iter.hasNext()) {

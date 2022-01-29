@@ -13,9 +13,9 @@ import org.sagebionetworks.bridge.rest.api.ForWorkersApi;
 import org.sagebionetworks.bridge.rest.api.InternalApi;
 import org.sagebionetworks.bridge.rest.api.PublicApi;
 import org.sagebionetworks.bridge.rest.model.AccountSummary;
+import org.sagebionetworks.bridge.rest.model.App;
 import org.sagebionetworks.bridge.rest.model.HealthDataSubmission;
 import org.sagebionetworks.bridge.rest.model.NotificationRegistration;
-import org.sagebionetworks.bridge.rest.model.Study;
 import org.sagebionetworks.bridge.rest.model.StudyParticipant;
 
 /** Abstracts away calls to Bridge and wraps the iterator classes. */
@@ -31,11 +31,11 @@ public class BridgeHelper {
     }
 
     /**
-     * Get an iterator for all account summaries in the given study. Note that since getAllAccountSummaries is a
+     * Get an iterator for all account summaries in the given app. Note that since getAccountSummariesForApp is a
      * paginated API, the iterator may continue to call the server.
      */
-    public Iterator<AccountSummary> getAllAccountSummaries() {
-        return new AccountSummaryIterator(clientManager);
+    public Iterator<AccountSummary> getAccountSummariesForApp(String appId) {
+        return new AccountSummaryIterator(clientManager, appId);
     }
 
     /** Gets a participant for the given user in the given study. */
@@ -54,11 +54,12 @@ public class BridgeHelper {
         clientManager.getClient(InternalApi.class).submitHealthDataForParticipant(userId, submission).execute();
     }
 
-    public Study getStudy(String studyId) throws IOException {
-        return clientManager.getClient(ForWorkersApi.class).getStudy(studyId).execute().body();
+    public App getApp(String appId) throws IOException {
+        return clientManager.getClient(ForWorkersApi.class).getApp(appId).execute().body();
     }
 
-    public List<Study> getStudySummaries() throws IOException {
-        return clientManager.getClient(PublicApi.class).getStudies(true).execute().body().getItems();
+    public List<App> getAppSummaries() throws IOException {
+        //noinspection ConstantConditions
+        return clientManager.getClient(PublicApi.class).getApps(true).execute().body().getItems();
     }
 }

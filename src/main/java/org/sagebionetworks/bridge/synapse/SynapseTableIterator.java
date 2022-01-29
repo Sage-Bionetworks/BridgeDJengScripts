@@ -5,7 +5,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
 
 import com.jcabi.aspects.RetryOnFailure;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.sagebionetworks.client.SynapseClient;
 import org.sagebionetworks.client.exceptions.SynapseClientException;
 import org.sagebionetworks.client.exceptions.SynapseException;
@@ -226,7 +226,7 @@ public class SynapseTableIterator {
     @RetryOnFailure(attempts = 5, delay = 100, unit = TimeUnit.MILLISECONDS, types = SynapseException.class,
             randomize = false)
     private String queryTableAsyncStartWithRetry(String sql) throws SynapseException {
-        return synapseClient.queryTableEntityBundleAsyncStart(sql, null, null, true, SynapseClient.QUERY_PARTMASK,
+        return synapseClient.queryTableEntityBundleAsyncStart(sql, null, null, SynapseClient.QUERY_PARTMASK,
                 synapseTableId);
     }
 
