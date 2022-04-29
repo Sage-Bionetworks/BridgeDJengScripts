@@ -68,7 +68,7 @@
         <dependency>
             <groupId>org.sagebionetworks</groupId>
             <artifactId>synapseJavaClient</artifactId>
-            <version>347.0</version>
+            <version>398.0</version>
         </dependency>
         <dependency>
             <groupId>org.sagebionetworks.bridge</groupId>
