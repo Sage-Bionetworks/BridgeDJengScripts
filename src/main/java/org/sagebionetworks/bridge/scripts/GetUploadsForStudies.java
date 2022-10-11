@@ -118,7 +118,9 @@ public class GetUploadsForStudies {
             }
 
             // Get study IDs for health code. Note that if health code is inactive, this returns an empty set.
-            Set<String> studyIdSet = getStudyIdsForHealthCode(upload.getHealthCode(), lastUploadId);
+            // TODO We originally got health code from upload.getHealthCode(), but that was never merged into JavaSDK.
+            String healthCode = null;
+            Set<String> studyIdSet = getStudyIdsForHealthCode(healthCode, lastUploadId);
             for (String studyId : studyIdSet) {
                 try {
                     appendToFile(studyId, lastUploadId);
