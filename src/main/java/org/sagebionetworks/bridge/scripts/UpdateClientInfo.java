@@ -22,7 +22,7 @@ import org.sagebionetworks.bridge.rest.model.SignIn;
 // BRIDGE-3349 - We have code on the server side to fix the duplicate client info bug. We just need to read the
 // RequestInfo and write it back to the server.
 public class UpdateClientInfo {
-    private static final String APP_ID = "mobile-toolbox";
+    private static final String APP_ID = "mtb-alpha";
     private static final ClientInfo CLIENT_INFO = new ClientInfo().appName("UpdateClientInfo").appVersion(1);
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
     private static final int MAX_ERRORS = 50;
@@ -60,7 +60,8 @@ public class UpdateClientInfo {
     }
 
     private static void execute() throws IOException {
-        AccountSummaryIterator accountSummaryIterator = new AccountSummaryIterator(clientManager, APP_ID);
+        AccountSummaryIterator accountSummaryIterator = new AccountSummaryIterator(clientManager, APP_ID,
+                100, 0.1);
         String lastUserId = null;
         int numErrors = 0;
         int numUsers = 0;
