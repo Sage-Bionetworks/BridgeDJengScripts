@@ -8,6 +8,8 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,9 +18,10 @@ public class SortWorkerMessages {
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
     private static BufferedReader fileReader;
-    private static PrintWriter healthCodeWriter;
+    private static final Map<String, PrintWriter> healthCodeWritersByStudy = new HashMap<>();
     private static PrintWriter miscMessageWriter;
     private static PrintWriter uploadIdWriter;
+    private static String outputPrefix;
 
     public static void main(String[] args) throws IOException {
         if (args.length != 2) {
@@ -36,9 +39,12 @@ public class SortWorkerMessages {
         } finally {
             // Close file readers and writers.
             fileReader.close();
-            healthCodeWriter.close();
             miscMessageWriter.close();
             uploadIdWriter.close();
+
+            for (PrintWriter writer : healthCodeWritersByStudy.values()) {
+                writer.close();
+            }
         }
 
         // Need to force exit, because JavaSDK doesn't close itself.
@@ -48,9 +54,10 @@ public class SortWorkerMessages {
     private static void init(String inputFilePath, String outputPrefix) throws IOException {
         // Set up readers and writers.
         fileReader = new BufferedReader(new FileReader(inputFilePath));
-        healthCodeWriter = new PrintWriter(new FileWriter(outputPrefix + "participants"));
         miscMessageWriter = new PrintWriter(new FileWriter(outputPrefix + "misc"));
         uploadIdWriter = new PrintWriter(new FileWriter(outputPrefix + "uploads"));
+
+        SortWorkerMessages.outputPrefix = outputPrefix;
     }
 
     private static void execute() throws IOException {
@@ -68,7 +75,7 @@ public class SortWorkerMessages {
                         uploadIdWriter.println(body.get("recordId").textValue());
                         break;
                     case "Ex3ParticipantVersionWorker":
-                        healthCodeWriter.println(body.get("healthCode").textValue());
+                        processParticipantMessage(body);
                         break;
                     default:
                         // Write the whole line to misc messages.
@@ -79,5 +86,18 @@ public class SortWorkerMessages {
                 logError("Error parsing line: " + line, ex);
             }
         }
+    }
+
+    private static void processParticipantMessage(JsonNode body) throws IOException {
+        String appId = body.get("appId").textValue();
+        String healthCode = body.get("healthCode").textValue();
+
+        PrintWriter writer = healthCodeWritersByStudy.get(appId);
+        if (writer == null) {
+            writer = new PrintWriter(new FileWriter(outputPrefix + "participants-" + appId));
+            healthCodeWritersByStudy.put(appId, writer);
+        }
+
+        writer.println(healthCode);
     }
 }
