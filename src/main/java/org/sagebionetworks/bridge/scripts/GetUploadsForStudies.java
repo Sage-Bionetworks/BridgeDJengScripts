@@ -33,15 +33,15 @@ import org.sagebionetworks.bridge.rest.model.UploadStatus;
 
 @SuppressWarnings("ConstantConditions")
 public class GetUploadsForStudies {
-    private static final String APP_ID = "mobile-toolbox";
+    private static final String APP_ID = "open-bridge";
     private static final ClientInfo CLIENT_INFO = new ClientInfo().appName("GetUploadsForStudies").appVersion(1);
-    private static final DateTime START_DATE_TIME = DateTime.parse("2021-09-10T0:00-0700");
-    private static final DateTime END_DATE_TIME = DateTime.parse("2022-04-09T0:00-0700");
+    private static final DateTime START_DATE_TIME = DateTime.parse("2023-12-01T0:00-0700");
+    private static final DateTime END_DATE_TIME = DateTime.parse("2023-12-07T00:00-0700");
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
     private static final int MAX_ERRORS = 50;
     private static final String OUTPUT_PATH_PREFIX = "/Users/dwaynejeng/Documents/backfill/all-uploads-";
     private static final int REPORTING_INTERVAL = 1000;
-    private static final Set<String> STUDY_ID_SET = ImmutableSet.of("cxhnxd", "fmqcjv", "hktrrx", "htshxm");
+    private static final Set<String> STUDY_ID_SET = ImmutableSet.of("rvrccc");
 
     private static ClientManager clientManager;
     private static Map<String, PrintWriter> fileWritersByStudy = new HashMap<>();
@@ -112,23 +112,30 @@ public class GetUploadsForStudies {
 
             lastUploadId = upload.getUploadId();
             lastRequestedOn = upload.getRequestedOn();
-            if (upload.getStatus() == UploadStatus.REQUESTED) {
-                // Upload requested but never completed. Skip.
-                continue;
+            try {
+                appendToFile("rvrccc", lastUploadId);
+            } catch (IOException ex) {
+                logError("Error appending upload " + lastUploadId + " to file", ex);
             }
 
+            //if (upload.getStatus() == UploadStatus.REQUESTED) {
+            //    // Upload requested but never completed. Skip.
+            //    continue;
+            //}
+            //
             // Get study IDs for health code. Note that if health code is inactive, this returns an empty set.
             // TODO We originally got health code from upload.getHealthCode(), but that was never merged into JavaSDK.
-            String healthCode = null;
-            Set<String> studyIdSet = getStudyIdsForHealthCode(healthCode, lastUploadId);
-            for (String studyId : studyIdSet) {
-                try {
-                    appendToFile(studyId, lastUploadId);
-                } catch (IOException ex) {
-                    logError("Error appending upload " + lastUploadId + " to file for study " + studyId,
-                            ex);
-                }
-            }
+            //String healthCode = upload.getHealthCode();
+            //String healthCode = null;
+            //Set<String> studyIdSet = getStudyIdsForHealthCode(healthCode, lastUploadId);
+            //for (String studyId : studyIdSet) {
+            //    try {
+            //        appendToFile(studyId, lastUploadId);
+            //    } catch (IOException ex) {
+            //        logError("Error appending upload " + lastUploadId + " to file for study " + studyId,
+            //                ex);
+            //    }
+            //}
         }
     }
 

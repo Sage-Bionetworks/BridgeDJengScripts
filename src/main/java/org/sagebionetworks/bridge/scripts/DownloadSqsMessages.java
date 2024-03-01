@@ -22,7 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class DownloadSqsMessages {
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
-    private static final String QUEUE_URL = "https://sqs.us-east-1.amazonaws.com/649232250620/Bridge-UploadComplete-Notification-prod";
+    private static final String QUEUE_URL = "https://sqs.us-east-1.amazonaws.com/649232250620/bridgeserver2-antivirus-prod-VirusScanDeadLetterQueue-HnnMlrhSqzwF";
 
     private static AmazonSQS sqs;
     private static PrintWriter fileWriter;
