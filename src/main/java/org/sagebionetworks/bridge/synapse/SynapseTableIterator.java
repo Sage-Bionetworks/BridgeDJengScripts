@@ -5,7 +5,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
 
 import com.jcabi.aspects.RetryOnFailure;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.sagebionetworks.client.SynapseClient;
 import org.sagebionetworks.client.exceptions.SynapseClientException;
 import org.sagebionetworks.client.exceptions.SynapseException;
